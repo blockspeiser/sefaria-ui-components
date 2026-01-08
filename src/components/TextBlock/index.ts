@@ -6,4 +6,4 @@ export {
   type TextBlockClickEvent,
   type TextBlockLinkClickEvent,
 } from './TextBlock';
-export { textBlockPortfolio } from './TextBlock.portfolio';
+export { textBlockGallery } from './TextBlock.gallery';

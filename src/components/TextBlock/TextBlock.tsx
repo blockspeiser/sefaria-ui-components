@@ -1,4 +1,4 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { categoryColor } from '../../lib/palette';
 import type { ComponentEventOf, EventHandler } from '../../lib/events';
 import type { FollowupAction } from '../../lib/followup-prompts';
@@ -11,6 +11,12 @@ export interface SefariaTextResponse {
   heRef?: string;
   text?: unknown;
   he?: unknown;
+  versions?: Array<{
+    text?: unknown;
+    language?: string;
+    versionTitle?: string;
+    isPrimary?: boolean;
+  }>;
   sections?: unknown;
   toSections?: unknown;
   primary_category?: unknown;
@@ -31,8 +37,14 @@ export type TextBlockEvent = TextBlockClickEvent | TextBlockLinkClickEvent | Tex
 export interface TextBlockProps {
   /** Sefaria citation reference (e.g., "Genesis 1:1") */
   sefRef?: string;
-  /** Data from Sefaria Text API. If provided, renders full text. */
+  /** Data from Sefaria Text API. If <code>sefariaData</code> is provided, renders full text. */
   sefariaData?: SefariaTextResponse;
+  /** If true, fetches data from the Sefaria API when <code>sefariaData</code> is not provided. */
+  fetchData?: boolean;
+  /** Initial display <code>language</code>: translation, bilingual, or Hebrew. */
+  language?: string;
+  /** Preferred translation <code>versionTitle</code> from the Sefaria API. */
+  versionTitle?: string;
   /** Show the "Follow up" button with action menu */
   showFollowup?: boolean;
   /** Event handler for component events */
@@ -140,7 +152,11 @@ function sliceSefariaTextWithLabels(source: SefariaTextResponse): Array<{ label:
     : start;
 
   if (start.length < 2) {
-    return sliceSefariaTextToRange(source).map((t) => ({ label: '', html: t }));
+    const segments = sliceSefariaTextToRange(source);
+    if (segments.length <= 1) {
+      return segments.map((t) => ({ label: '', html: t }));
+    }
+    return segments.map((t, i) => ({ label: String(i + 1), html: t }));
   }
 
   const startSection = start[0];
@@ -192,6 +208,108 @@ function sliceSefariaTextWithLabels(source: SefariaTextResponse): Array<{ label:
   return out;
 }
 
+type DisplayLanguage = 'translation' | 'bilingual' | 'hebrew';
+
+const LANGUAGE_LABELS: Record<string, string> = {
+  en: 'English',
+  he: 'Hebrew',
+  fr: 'French',
+  es: 'Spanish',
+  ru: 'Russian',
+  de: 'German',
+  it: 'Italian',
+  ar: 'Arabic',
+  yi: 'Yiddish',
+};
+
+const SEFARIA_API_BASE = 'https://www.sefaria.org/api/v3/texts/';
+const sefariaCache = new Map<string, SefariaTextResponse>();
+
+function formatLanguageLabel(code?: string): string {
+  if (!code) return 'Translation';
+  const normalized = code.toLowerCase();
+  return LANGUAGE_LABELS[normalized] || normalized.toUpperCase();
+}
+
+function normalizeDisplayLanguage(language?: string): DisplayLanguage {
+  if (!language) return 'translation';
+  const normalized = language.toLowerCase();
+  if (normalized === 'bilingual') return 'bilingual';
+  if (normalized === 'he' || normalized === 'hebrew') return 'hebrew';
+  return 'translation';
+}
+
+function normalizeSections(raw?: unknown): number[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const values = raw
+    .map((entry) => (typeof entry === 'string' ? Number.parseInt(entry, 10) : entry))
+    .filter((entry): entry is number => typeof entry === 'number' && !Number.isNaN(entry));
+  return values.length > 0 ? values : undefined;
+}
+
+function getCacheKey(ref: string, versionTitle?: string): string {
+  return versionTitle ? `${ref}::${versionTitle}` : ref;
+}
+
+function pickTranslationVersion(
+  versions: SefariaTextResponse['versions'],
+  preferredTitle?: string,
+) {
+  if (!versions || versions.length === 0) return undefined;
+  const translations = versions.filter((version) => version.language !== 'he');
+  if (preferredTitle) {
+    const match = translations.find((version) => version.versionTitle === preferredTitle);
+    if (match) return match;
+  }
+  return translations.find((version) => version.isPrimary) || translations[0];
+}
+
+function pickHebrewVersion(versions: SefariaTextResponse['versions']) {
+  if (!versions || versions.length === 0) return undefined;
+  return versions.find((version) => version.language === 'he') || versions[0];
+}
+
+function normalizeSefariaResponse(
+  data: SefariaTextResponse | undefined,
+  preferredTitle?: string,
+): SefariaTextResponse | undefined {
+  if (!data) return undefined;
+  const versions = Array.isArray(data.versions) ? data.versions : undefined;
+  const translationVersion = pickTranslationVersion(versions, preferredTitle);
+  const hebrewVersion = pickHebrewVersion(versions);
+
+  return {
+    ...data,
+    text: translationVersion?.text ?? data.text,
+    he: hebrewVersion?.text ?? data.he,
+    sections: normalizeSections(data.sections),
+    toSections: normalizeSections(data.toSections),
+    versions,
+  };
+}
+
+async function fetchSefariaText(
+  ref: string,
+  versionTitle?: string,
+): Promise<SefariaTextResponse> {
+  const encodedRef = encodeURIComponent(ref);
+  const params = new URLSearchParams();
+
+  if (versionTitle) {
+    params.append('version', versionTitle);
+  } else {
+    params.append('version', 'english');
+  }
+
+  params.append('version', 'hebrew');
+
+  const response = await fetch(`${SEFARIA_API_BASE}${encodedRef}?${params.toString()}`);
+  if (!response.ok) {
+    throw new Error(`Sefaria API error: ${response.status}`);
+  }
+  return (await response.json()) as SefariaTextResponse;
+}
+
 function getBorderColor(source: SefariaTextResponse | undefined, fallbackRef?: string): string {
   if (!source) {
     return categoryColor(`resolved:${fallbackRef || 'Source'}`);
@@ -232,6 +350,80 @@ const styles: Record<string, CSSProperties> = {
     fontFamily: 'Georgia, "Times New Roman", serif',
     color: '#71717a',
     textDecoration: 'none',
+  },
+  headerRow: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: '12px',
+  },
+  menuContainer: {
+    position: 'relative',
+  },
+  menuButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '28px',
+    height: '28px',
+    borderRadius: '6px',
+    border: '1px solid transparent',
+    backgroundColor: 'transparent',
+    color: '#71717a',
+    cursor: 'pointer',
+  },
+  menu: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: '6px',
+    backgroundColor: '#ffffff',
+    border: '1px solid #e4e4e7',
+    borderRadius: '10px',
+    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.12)',
+    padding: '8px',
+    minWidth: '220px',
+    zIndex: 20,
+  },
+  menuSectionLabel: {
+    padding: '6px 10px',
+    fontSize: '0.75rem',
+    fontWeight: 600,
+    color: '#71717a',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  menuDivider: {
+    height: '1px',
+    backgroundColor: '#e4e4e7',
+    margin: '6px 4px',
+  },
+  menuItem: {
+    width: '100%',
+    padding: '8px 10px',
+    borderRadius: '6px',
+    border: 'none',
+    backgroundColor: 'transparent',
+    textAlign: 'left',
+    fontSize: '0.875rem',
+    cursor: 'pointer',
+    color: '#27272a',
+    fontFamily: 'inherit',
+  },
+  menuItemActive: {
+    backgroundColor: '#f4f4f5',
+    fontWeight: 600,
+  },
+  menuItemMuted: {
+    color: '#a1a1aa',
+    cursor: 'default',
+  },
+  hebrewText: {
+    display: 'block',
+    marginTop: '4px',
+    fontFamily: 'Georgia, "Times New Roman", serif',
+    fontSize: '1.5rem',
+    color: '#27272a',
   },
   loading: {
     marginTop: '8px',
@@ -314,24 +506,108 @@ const FOLLOWUP_MENU_ITEMS: Array<{ key: FollowupAction; label: string }> = [
 function TextBlockInner({
   sefRef,
   sefariaData,
+  fetchData = false,
+  language,
+  versionTitle,
   showFollowup,
   onEvent,
   className,
   style,
 }: TextBlockProps) {
   const [isFollowupOpen, setIsFollowupOpen] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isTranslationLoading, setIsTranslationLoading] = useState(false);
+  const [activeData, setActiveData] = useState<SefariaTextResponse | undefined>(sefariaData);
+  const [displayLanguage, setDisplayLanguage] = useState<DisplayLanguage>(
+    normalizeDisplayLanguage(language),
+  );
+  const [selectedVersionTitle, setSelectedVersionTitle] = useState<string | undefined>(versionTitle);
 
-  const title = sefariaData?.ref ?? sefRef ?? 'Source';
+  useEffect(() => {
+    setActiveData(sefariaData);
+  }, [sefariaData]);
+
+  useEffect(() => {
+    setDisplayLanguage(normalizeDisplayLanguage(language));
+  }, [language]);
+
+  useEffect(() => {
+    setSelectedVersionTitle(versionTitle);
+  }, [versionTitle]);
+
+  const normalizedData = useMemo(
+    () => normalizeSefariaResponse(activeData, selectedVersionTitle),
+    [activeData, selectedVersionTitle],
+  );
+
+  const translationVersions = useMemo(() => {
+    const versions = normalizedData?.versions || [];
+    const list = versions.filter((version) => version.language !== 'he' && version.versionTitle);
+    const seen = new Set<string>();
+    return list.filter((version) => {
+      if (!version.versionTitle || seen.has(version.versionTitle)) return false;
+      seen.add(version.versionTitle);
+      return true;
+    });
+  }, [normalizedData?.versions]);
+
+  const translationLanguageCode = useMemo(() => {
+    const preferred = pickTranslationVersion(normalizedData?.versions, selectedVersionTitle);
+    if (preferred?.language) return preferred.language;
+    const normalized = language?.toLowerCase();
+    if (normalized && normalized !== 'bilingual' && normalized !== 'he' && normalized !== 'hebrew') {
+      return normalized;
+    }
+    return undefined;
+  }, [language, normalizedData?.versions, selectedVersionTitle]);
+
+  useEffect(() => {
+    if (!fetchData || sefariaData || !sefRef) return;
+    const cacheKey = getCacheKey(sefRef, selectedVersionTitle);
+    const cached = sefariaCache.get(cacheKey);
+    if (cached) {
+      setActiveData(cached);
+      return;
+    }
+    let cancelled = false;
+
+    setIsTranslationLoading(true);
+    fetchSefariaText(sefRef, selectedVersionTitle)
+      .then((data) => {
+        if (cancelled) return;
+        sefariaCache.set(cacheKey, data);
+        setActiveData(data);
+      })
+      .catch((error) => {
+        if (!cancelled) console.error(error);
+      })
+      .finally(() => {
+        if (!cancelled) setIsTranslationLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchData, sefariaData, sefRef, selectedVersionTitle]);
+
+  const title = normalizedData?.ref ?? sefRef ?? 'Source';
   const href = `https://www.sefaria.org/${encodeURIComponent(title)}`;
-  const borderColor = getBorderColor(sefariaData, sefRef);
-  const isLoading = !sefariaData;
+  const borderColor = getBorderColor(normalizedData, sefRef);
+  const isLoading = !normalizedData || isTranslationLoading;
 
-  const isRange = sefariaData ? isRangeCitation(sefariaData) : false;
-  const segments = sefariaData
+  const isRange = normalizedData ? isRangeCitation(normalizedData) : false;
+  const segments = normalizedData
     ? isRange
-      ? sliceSefariaTextWithLabels(sefariaData)
-      : sliceSefariaTextToRange(sefariaData).map((s) => ({ label: '', html: s }))
+      ? sliceSefariaTextWithLabels(normalizedData)
+      : sliceSefariaTextToRange(normalizedData).map((s) => ({ label: '', html: s }))
     : [];
+
+  const hebrewSegments = useMemo(() => {
+    if (!normalizedData?.he) return [];
+    const hebrewSource: SefariaTextResponse = { ...normalizedData, text: normalizedData.he };
+    if (isRange) return sliceSefariaTextWithLabels(hebrewSource);
+    return sliceSefariaTextToRange(hebrewSource).map((s) => ({ label: '', html: s }));
+  }, [isRange, normalizedData]);
 
   const handleClick = () => {
     onEvent?.({ type: 'TextBlock:click', data: { ref: title } });
@@ -352,6 +628,49 @@ function TextBlockInner({
     setIsFollowupOpen(false);
   };
 
+  const handleMenuToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsMenuOpen((prev) => !prev);
+  };
+
+  const handleLanguageSelect = (next: DisplayLanguage) => {
+    setDisplayLanguage(next);
+    setIsMenuOpen(false);
+  };
+
+  const handleTranslationSelect = async (nextTitle: string) => {
+    if (!nextTitle || nextTitle === selectedVersionTitle) {
+      setIsMenuOpen(false);
+      return;
+    }
+    const ref = normalizedData?.ref ?? sefRef;
+    if (!ref) {
+      setIsMenuOpen(false);
+      return;
+    }
+    const cacheKey = getCacheKey(ref, nextTitle);
+    const cached = sefariaCache.get(cacheKey);
+    if (cached) {
+      setSelectedVersionTitle(nextTitle);
+      setActiveData(cached);
+      setIsMenuOpen(false);
+      return;
+    }
+    setSelectedVersionTitle(nextTitle);
+    setIsTranslationLoading(true);
+
+    try {
+      const nextData = await fetchSefariaText(ref, nextTitle);
+      sefariaCache.set(cacheKey, nextData);
+      setActiveData(nextData);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsTranslationLoading(false);
+      setIsMenuOpen(false);
+    }
+  };
+
   return (
     <div
       className={className}
@@ -362,27 +681,115 @@ function TextBlockInner({
       }}
       onClick={handleClick}
     >
-      <a
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={styles.titleLink}
-        onClick={handleLinkClick}
-      >
-        {title}
-      </a>
+      <div style={styles.headerRow}>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={styles.titleLink}
+          onClick={handleLinkClick}
+        >
+          {title}
+        </a>
+        <div style={styles.menuContainer}>
+          <button
+            type="button"
+            style={styles.menuButton}
+            onClick={handleMenuToggle}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = '#f4f4f5';
+              e.currentTarget.style.borderColor = '#e4e4e7';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'transparent';
+              e.currentTarget.style.borderColor = 'transparent';
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <circle cx="12" cy="5" r="2" />
+              <circle cx="12" cy="12" r="2" />
+              <circle cx="12" cy="19" r="2" />
+            </svg>
+          </button>
+          {isMenuOpen && (
+            <div style={styles.menu} onClick={(e) => e.stopPropagation()}>
+              <div style={styles.menuSectionLabel}>Language</div>
+              {([
+                { key: 'translation', label: formatLanguageLabel(translationLanguageCode) },
+                { key: 'bilingual', label: 'Bilingual' },
+                { key: 'hebrew', label: 'Hebrew' },
+              ] as Array<{ key: DisplayLanguage; label: string }>).map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  style={{
+                    ...styles.menuItem,
+                    ...(displayLanguage === item.key ? styles.menuItemActive : null),
+                  }}
+                  onClick={() => handleLanguageSelect(item.key)}
+                >
+                  {item.label}
+                </button>
+              ))}
+              <div style={styles.menuDivider} />
+              <div style={styles.menuSectionLabel}>Translation</div>
+              {translationVersions.length === 0 ? (
+                <div style={{ ...styles.menuItem, ...styles.menuItemMuted }}>No translations</div>
+              ) : (
+                translationVersions.map((version) => (
+                  <button
+                    key={version.versionTitle}
+                    type="button"
+                    style={{
+                      ...styles.menuItem,
+                      ...(version.versionTitle === selectedVersionTitle ? styles.menuItemActive : null),
+                    }}
+                    onClick={() => handleTranslationSelect(version.versionTitle as string)}
+                  >
+                    {version.versionTitle}
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      </div>
 
       {isLoading ? (
         <div style={styles.loading}>Loading...</div>
       ) : segments.length > 0 ? (
         <div style={styles.textBody}>
-          {segments.map((s, idx) => (
-            <span key={`${s.label}-${idx}`}>
-              {s.label && <span style={styles.segmentNumber}>({s.label}) </span>}
-              <span dangerouslySetInnerHTML={{ __html: s.html }} />
-              {idx < segments.length - 1 && ' '}
-            </span>
-          ))}
+          {displayLanguage === 'hebrew' ? (
+            hebrewSegments.map((s, idx) => (
+              <span key={`${s.label}-${idx}`}>
+                {s.label && <span style={styles.segmentNumber}>({s.label}) </span>}
+                <span dir="rtl" dangerouslySetInnerHTML={{ __html: s.html }} />
+                {idx < hebrewSegments.length - 1 && ' '}
+              </span>
+            ))
+          ) : displayLanguage === 'bilingual' ? (
+            segments.map((s, idx) => (
+              <span key={`${s.label}-${idx}`} style={{ display: 'block', marginBottom: '10px' }}>
+                {s.label && <span style={styles.segmentNumber}>({s.label}) </span>}
+                <span dangerouslySetInnerHTML={{ __html: s.html }} />
+                {hebrewSegments[idx]?.html && (
+                  <span
+                    style={styles.hebrewText}
+                    dir="rtl"
+                    dangerouslySetInnerHTML={{ __html: hebrewSegments[idx].html }}
+                  />
+                )}
+              </span>
+            ))
+          ) : (
+            segments.map((s, idx) => (
+              <span key={`${s.label}-${idx}`}>
+                {s.label && <span style={styles.segmentNumber}>({s.label}) </span>}
+                <span dangerouslySetInnerHTML={{ __html: s.html }} />
+                {idx < segments.length - 1 && ' '}
+              </span>
+            ))
+          )}
         </div>
       ) : (
         <div style={styles.loading}>…</div>

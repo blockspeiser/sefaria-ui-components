@@ -5,4 +5,4 @@ export * from './components';
 export * from './lib';
 
 // Types
-export type { PortfolioConfig, PortfolioExample } from './types/portfolio';
+export type { GalleryConfig, GalleryExample } from './types/gallery';

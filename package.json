@@ -1,7 +1,7 @@
 {
-  "name": "sefaria-components",
+  "name": "sefaria-ui-components",
   "version": "0.1.0",
-  "description": "Reusable React component library",
+  "description": "Reusable UI component library for Torah apps, powered by Sefaria",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -23,9 +23,9 @@
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
-    "dev": "vite --config portfolio/vite.config.ts",
-    "portfolio:build": "vite build --config portfolio/vite.config.ts",
-    "portfolio:preview": "vite preview --config portfolio/vite.config.ts",
+    "dev": "vite --config gallery/vite.config.ts",
+    "gallery:build": "vite build --config gallery/vite.config.ts",
+    "gallery:preview": "vite preview --config gallery/vite.config.ts",
     "datastore:fetch": "tsx scripts/fetch-sefaria-data.ts",
     "lint": "eslint src --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",

@@ -30,6 +30,7 @@ export function ComponentPage() {
             example={example}
             component={Component}
             componentName={config.name}
+            allProps={config.propsList}
           />
         ))}
       </section>

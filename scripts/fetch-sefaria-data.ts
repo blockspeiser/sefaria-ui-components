@@ -25,60 +25,10 @@ const REFS_TO_FETCH = [
 ];
 
 interface SefariaV3Response {
-  ref?: string;
-  heRef?: string;
-  versions?: Array<{
-    text?: unknown;
-    language?: string;
-    versionTitle?: string;
-    isPrimary?: boolean;
-  }>;
-  sections?: (number | string)[];
-  toSections?: (number | string)[];
-  primary_category?: string;
-  type?: string;
-  categories?: string[];
   [key: string]: unknown;
 }
 
-interface SefariaTextResponse {
-  ref?: string;
-  heRef?: string;
-  text?: unknown;
-  he?: unknown;
-  sections?: unknown;
-  toSections?: unknown;
-  primary_category?: unknown;
-  type?: unknown;
-  categories?: unknown;
-  [key: string]: unknown;
-}
-
-function transformV3Response(v3Response: SefariaV3Response): SefariaTextResponse {
-  const versions = v3Response.versions || [];
-
-  // Find English and Hebrew versions
-  const englishVersion = versions.find(v => v.language === 'en');
-  const hebrewVersion = versions.find(v => v.language === 'he');
-
-  // Convert sections to numbers
-  const sections = v3Response.sections?.map(s => typeof s === 'string' ? parseInt(s, 10) : s);
-  const toSections = v3Response.toSections?.map(s => typeof s === 'string' ? parseInt(s, 10) : s);
-
-  return {
-    ref: v3Response.ref,
-    heRef: v3Response.heRef,
-    text: englishVersion?.text,
-    he: hebrewVersion?.text,
-    sections,
-    toSections,
-    primary_category: v3Response.primary_category,
-    type: v3Response.type,
-    categories: v3Response.categories,
-  };
-}
-
-async function fetchSefariaText(ref: string): Promise<SefariaTextResponse | null> {
+async function fetchSefariaText(ref: string): Promise<SefariaV3Response | null> {
   const encodedRef = encodeURIComponent(ref);
   // Request both English and Hebrew versions
   const url = `${SEFARIA_API_BASE}${encodedRef}?version=english&version=hebrew`;
@@ -94,9 +44,9 @@ async function fetchSefariaText(ref: string): Promise<SefariaTextResponse | null
     }
 
     const v3Data: SefariaV3Response = await response.json();
-    const transformed = transformV3Response(v3Data);
-    console.log(`  Success: ${transformed.ref || ref}`);
-    return transformed;
+    const dataRef = typeof v3Data.ref === 'string' ? v3Data.ref : ref;
+    console.log(`  Success: ${dataRef || ref}`);
+    return v3Data;
   } catch (error) {
     console.error(`  Error fetching ${ref}:`, error);
     return null;
@@ -106,13 +56,13 @@ async function fetchSefariaText(ref: string): Promise<SefariaTextResponse | null
 async function main() {
   console.log('Fetching Sefaria data...\n');
 
-  const datastore: Record<string, SefariaTextResponse> = {};
+  const datastore: Record<string, SefariaV3Response> = {};
 
   for (const ref of REFS_TO_FETCH) {
     const data = await fetchSefariaText(ref);
     if (data) {
       // Use the canonical ref from the response if available
-      const canonicalRef = data.ref || ref;
+      const canonicalRef = typeof data.ref === 'string' ? data.ref : ref;
       datastore[canonicalRef] = data;
 
       // Also store under the original ref if different
@@ -126,11 +76,11 @@ async function main() {
   }
 
   // Generate the datastore file
-  const outputPath = path.join(__dirname, '../portfolio/src/datastore.ts');
+  const outputPath = path.join(__dirname, '../gallery/src/datastore.ts');
 
   const fileContent = `/**
  * Datastore for Sefaria Text API responses.
- * Pre-fetched data for use in portfolio examples.
+ * Pre-fetched data for use in gallery examples.
  *
  * Generated: ${new Date().toISOString()}
  * To regenerate: npm run datastore:fetch

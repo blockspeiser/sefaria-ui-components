@@ -4,7 +4,7 @@ import { componentRegistry } from '../registry';
 export function HomePage() {
   return (
     <div className="home-page">
-      <h1>Sefaria React Component Library</h1>
+      <h1>Sefaria UI Component Library</h1>
       <p>
         A collection of reusable React components for Torah apps, powered by Sefaria. Browse the components below or use the sidebar to navigate.
       </p>

@@ -1,6 +1,6 @@
-import type { PortfolioConfig } from '../../types/portfolio';
+import type { GalleryConfig } from '../../types/gallery';
 import { TextBlock, type TextBlockProps } from './TextBlock';
-import { getData } from '../../../portfolio/src/datastore';
+import { getData } from '../../../gallery/src/datastore';
 
 const sourceCode = `import type { CSSProperties } from 'react';
 import { categoryColor } from '../../lib/palette';
@@ -11,6 +11,12 @@ export interface SefariaTextResponse {
   heRef?: string;
   text?: unknown;
   he?: unknown;
+  versions?: Array<{
+    text?: unknown;
+    language?: string;
+    versionTitle?: string;
+    isPrimary?: boolean;
+  }>;
   sections?: unknown;
   toSections?: unknown;
   primary_category?: unknown;
@@ -26,6 +32,9 @@ export type TextBlockEvent = TextBlockClickEvent | TextBlockLinkClickEvent;
 export interface TextBlockProps {
   ref?: string;
   sefariaData?: SefariaTextResponse;
+  fetchData?: boolean;
+  language?: string;
+  versionTitle?: string;
   onEvent?: EventHandler<TextBlockEvent>;
   className?: string;
   style?: CSSProperties;
@@ -40,13 +49,25 @@ export function TextBlock(props: TextBlockProps) {
   // ...
 }`;
 
-export const textBlockPortfolio: PortfolioConfig<TextBlockProps> = {
+export const textBlockGallery: GalleryConfig<TextBlockProps> = {
   name: 'TextBlock',
   description:
     'Displays a Sefaria text source with a colored border indicating its category. Supports loading states, single verses, and verse ranges.',
-  shortDescription: 'Sefaria text display',
+  shortDescription:
+    'A nicely formatted block of text corresponding to a Sefaria citation, with optional interactive controls.',
   component: TextBlock,
   sourceCode,
+  propsList: [
+    'ref',
+    'sefariaData',
+    'fetchData',
+    'language',
+    'versionTitle',
+    'showFollowup',
+    'onEvent',
+    'className',
+    'style',
+  ],
   overviewExample: {
     sefRef: 'Genesis 1:1',
     sefariaData: getData('Genesis 1:1'),
@@ -59,6 +80,17 @@ export const textBlockPortfolio: PortfolioConfig<TextBlockProps> = {
       props: {
         sefRef: 'Genesis 1:1',
         showFollowup: false,
+      },
+    },
+    {
+      title: 'Language + Translation',
+      description:
+        'Use <code>language</code> to switch display modes and <code>versionTitle</code> to prefer a translation when available.',
+      props: {
+        sefRef: 'Genesis 1:1',
+        sefariaData: getData('Genesis 1:1'),
+        language: 'bilingual',
+        versionTitle: 'New JPS Translation',
       },
     },
     {
@@ -136,4 +168,4 @@ export const textBlockPortfolio: PortfolioConfig<TextBlockProps> = {
   ],
 };
 
-export default textBlockPortfolio;
+export default textBlockGallery;

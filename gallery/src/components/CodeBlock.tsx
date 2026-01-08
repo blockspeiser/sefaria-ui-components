@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { Highlight, themes } from 'prism-react-renderer';
 
 interface CodeBlockProps {
@@ -6,6 +6,8 @@ interface CodeBlockProps {
   language?: string;
   filename?: string;
   showCopyButton?: boolean;
+  className?: string;
+  style?: CSSProperties;
 }
 
 export function CodeBlock({
@@ -13,6 +15,8 @@ export function CodeBlock({
   language = 'tsx',
   filename,
   showCopyButton = true,
+  className,
+  style,
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
@@ -23,7 +27,10 @@ export function CodeBlock({
   };
 
   return (
-    <div className="source-code-container">
+    <div
+      className={className ? `source-code-container ${className}` : 'source-code-container'}
+      style={style}
+    >
       {(filename || showCopyButton) && (
         <div className="source-code-header">
           {filename && <span className="source-code-filename">{filename}</span>}

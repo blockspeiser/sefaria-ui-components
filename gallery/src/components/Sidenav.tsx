@@ -5,7 +5,7 @@ export function Sidenav() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <div className="sidebar-title">Sefaria React Components</div>
+        <div className="sidebar-title">Sefaria UI Components</div>
       </div>
       <nav className="sidebar-nav">
         <NavLink

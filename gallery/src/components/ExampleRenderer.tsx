@@ -1,5 +1,5 @@
-import { useState, useEffect, type ComponentType } from 'react';
-import type { PortfolioExample } from '../../../src/types/portfolio';
+import { useState, useEffect, useRef, type ComponentType } from 'react';
+import type { GalleryExample } from '../../../src/types/gallery';
 import { CodeBlock } from './CodeBlock';
 import {
   FOLLOWUP_TEMPLATES,
@@ -7,9 +7,10 @@ import {
 } from '../../../src/lib/followup-prompts';
 
 interface ExampleRendererProps {
-  example: PortfolioExample;
+  example: GalleryExample;
   component: ComponentType<Record<string, unknown>>;
   componentName: string;
+  allProps?: string[];
 }
 
 type TabType = 'props' | 'code';
@@ -141,18 +142,36 @@ export function ExampleRenderer({
   example,
   component: Component,
   componentName,
+  allProps,
 }: ExampleRendererProps) {
   const [activeTab, setActiveTab] = useState<TabType>('props');
   const [propsOverrides, setPropsOverrides] = useState<Record<string, boolean>>({});
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [propsHeight, setPropsHeight] = useState(0);
+  const propsRef = useRef<HTMLDivElement | null>(null);
 
   // Filter out 'ref' to avoid React reserved prop conflict
   const baseProps = Object.fromEntries(
     Object.entries(example.props).filter(([key]) => key !== 'ref')
   );
   const currentProps = { ...baseProps, ...propsOverrides };
+  const displayProps = { ...example.props, ...propsOverrides };
+  const displayPropKeys = allProps && allProps.length > 0 ? allProps : Object.keys(displayProps);
   const Wrapper = example.wrapper ?? (({ children }) => <>{children}</>);
   const usageCode = generateUsageCode(componentName, currentProps);
+
+  useEffect(() => {
+    if (!propsRef.current) return;
+    const updateHeight = () => {
+      if (propsRef.current) {
+        setPropsHeight(propsRef.current.offsetHeight);
+      }
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(propsRef.current);
+    return () => observer.disconnect();
+  }, [displayPropKeys]);
 
   const handleToggle = (key: string, currentValue: boolean) => {
     setPropsOverrides((prev) => ({
@@ -239,15 +258,22 @@ export function ExampleRenderer({
         </div>
 
         {activeTab === 'props' && (
-          <div className="props-display">
-            {Object.entries(currentProps).map(([key, value]) => {
+          <div className="props-display" ref={propsRef}>
+            {displayPropKeys.map((key) => {
+              let value =
+                key === 'ref'
+                  ? (displayProps.ref ?? displayProps.sefRef ?? null)
+                  : (key in displayProps ? displayProps[key] : null);
+              if (key === 'fetchData' && value === null) {
+                value = false;
+              }
               // Display "ref" instead of "sefRef" for better DX
               const displayKey = key === 'sefRef' ? 'ref' : key;
               const isBoolean = typeof value === 'boolean';
 
               return (
                 <div key={key} className="prop-line">
-                  <span className="prop-name">{displayKey}:</span>
+                  <code className="prop-name">{displayKey}:</code>
                   {isBoolean ? (
                     <button
                       style={{
@@ -284,7 +310,13 @@ export function ExampleRenderer({
         )}
 
         {activeTab === 'code' && (
-          <CodeBlock code={usageCode} language="tsx" showCopyButton={false} />
+          <CodeBlock
+            code={usageCode}
+            language="tsx"
+            showCopyButton={false}
+            className="example-code-block"
+            style={propsHeight ? { minHeight: propsHeight } : undefined}
+          />
         )}
       </div>
     </div>
