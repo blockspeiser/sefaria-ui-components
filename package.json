@@ -2,6 +2,7 @@
   "name": "sefaria-ui-components",
   "version": "0.1.0",
   "description": "Reusable UI component library for Torah apps, powered by Sefaria",
+  "author": "Sefaria",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -11,15 +12,12 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
   "files": [
     "dist"
   ],
-  "sideEffects": [
-    "*.css"
-  ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "build:watch": "tsup --watch",
@@ -53,11 +51,25 @@
   "keywords": [
     "react",
     "components",
-    "ui"
+    "ui",
+    "sefaria",
+    "torah",
+    "jewish",
+    "hebrew",
+    "talmud",
+    "bible",
+    "tanakh"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/sefaria-components.git"
+    "url": "git+https://github.com/blockspeiser/sefaria-ui-components.git"
+  },
+  "homepage": "https://github.com/blockspeiser/sefaria-ui-components#readme",
+  "bugs": {
+    "url": "https://github.com/blockspeiser/sefaria-ui-components/issues"
   }
 }
