@@ -21,13 +21,41 @@ interface Toast {
   data: string;
 }
 
-function isSefariaData(value: unknown): value is { ref?: string } {
+function isSefariaTextData(value: unknown): value is { ref?: string } {
   return (
     typeof value === 'object' &&
     value !== null &&
     'ref' in value &&
     typeof (value as { ref?: string }).ref === 'string'
   );
+}
+
+function isSefariaWordData(value: unknown): value is Array<{ headword?: string; parent_lexicon?: string }> {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    typeof value[0] === 'object' &&
+    value[0] !== null &&
+    ('headword' in value[0] || 'parent_lexicon' in value[0])
+  );
+}
+
+/**
+ * Formats sefariaData prop value with a helpful placeholder that links to the API.
+ * Reusable across all components that accept sefariaData.
+ */
+function formatSefariaDataProp(value: unknown): string {
+  // Handle SefariaTextResponse
+  if (isSefariaTextData(value)) {
+    return `{/* Data from https://www.sefaria.org/api/v3/texts/${value.ref} */}`;
+  }
+  // Handle SefariaWordResponse
+  if (isSefariaWordData(value)) {
+    const firstEntry = value[0];
+    const word = firstEntry.headword || 'word';
+    return `{/* Data from https://www.sefaria.org/api/words/${encodeURIComponent(word)} */}`;
+  }
+  return JSON.stringify(value, null, 2);
 }
 
 function formatPropValue(value: unknown, key?: string): string {
@@ -44,8 +72,8 @@ function formatPropValue(value: unknown, key?: string): string {
     return 'undefined';
   }
   // Show placeholder for sefariaData objects
-  if (key === 'sefariaData' && isSefariaData(value)) {
-    return `{/* Sefaria API data for "${value.ref}" */}`;
+  if (key === 'sefariaData' && value) {
+    return formatSefariaDataProp(value);
   }
   return JSON.stringify(value, null, 2);
 }
@@ -270,6 +298,7 @@ export function ExampleRenderer({
               // Display "ref" instead of "sefRef" for better DX
               const displayKey = key === 'sefRef' ? 'ref' : key;
               const isBoolean = typeof value === 'boolean';
+              const booleanValue: boolean = typeof value === 'boolean' ? value : false;
 
               return (
                 <div key={key} className="prop-line">
@@ -278,15 +307,15 @@ export function ExampleRenderer({
                     <button
                       style={{
                         ...toggleStyles.toggle,
-                        ...(value ? toggleStyles.toggleActive : {}),
+                        ...(booleanValue ? toggleStyles.toggleActive : {}),
                       }}
-                      onClick={() => handleToggle(key, value)}
+                      onClick={() => handleToggle(key, booleanValue)}
                       aria-label={`Toggle ${displayKey}`}
                     >
                       <span
                         style={{
                           ...toggleStyles.toggleKnob,
-                          ...(value ? toggleStyles.toggleKnobActive : {}),
+                          ...(booleanValue ? toggleStyles.toggleKnobActive : {}),
                         }}
                       />
                     </button>

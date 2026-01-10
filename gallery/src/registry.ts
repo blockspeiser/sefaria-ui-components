@@ -6,7 +6,7 @@ const galleryModules = import.meta.glob<{ default: GalleryConfig }>(
   { eager: true }
 );
 
-const componentOrder = ['TextBlock', 'CalendarBlock'];
+const componentOrder = ['TextBlock', 'CalendarBlock', 'DictionaryBlock', 'SheetBlock'];
 
 // Extract and organize gallery configs
 export const componentRegistry: GalleryConfig[] = Object.values(galleryModules)

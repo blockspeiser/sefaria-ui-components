@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { categoryColor } from '../../lib/palette';
+import { ColorLineBlock } from '../ColorLineBlock';
 
 interface SefariaTextResponse {
   ref?: string;
@@ -147,15 +148,6 @@ function getBorderColor(category?: string): string {
 }
 
 const styles: Record<string, CSSProperties> = {
-  container: {
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#e4e4e7',
-    borderLeftWidth: '5px',
-    borderRadius: '10px',
-    padding: '16px',
-    backgroundColor: '#ffffff',
-  },
   label: {
     fontSize: '0.7rem',
     textTransform: 'uppercase',
@@ -410,15 +402,7 @@ export function CalendarBlock({ calendar, showText = false, className, style }: 
     : null;
 
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      style={{
-        ...styles.container,
-        borderLeftColor: borderColor,
-        ...style,
-      }}
-    >
+    <ColorLineBlock ref={containerRef} className={className} style={style} borderColor={borderColor}>
       <div style={styles.label}>{title}</div>
       {isLoading ? (
         <div style={styles.loading}>Loading...</div>
@@ -519,6 +503,6 @@ export function CalendarBlock({ calendar, showText = false, className, style }: 
       ) : (
         <div style={styles.loading}>Calendar not found.</div>
       )}
-    </div>
+    </ColorLineBlock>
   );
 }

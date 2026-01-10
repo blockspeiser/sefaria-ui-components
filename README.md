@@ -35,6 +35,10 @@ function App() {
 
 Displays a Sefaria text source with a colored border indicating its category. Supports loading states, single verses, verse ranges, and chapters.
 
+### DictionaryBlock
+
+Displays lexicon entries from the Sefaria Word API with a light grey background. Shows dictionary definitions, morphology, and related word information for Hebrew and Aramaic words.
+
 #### Props
 
 | Prop | Type | Description |
@@ -161,9 +165,92 @@ When `showFollowup` is enabled, users can select from these actions:
 - `connect_to_life` - Connect to modern life
 - `trace_usage` - Trace how the text is understood in later sources
 
+### DictionaryBlock
+
+#### Props
+
+| Prop | Type | Description |
+|------|------|-------------|
+| `word` | `string` | The word to look up in the Sefaria lexicon (required) |
+| `sefariaData` | `SefariaWordResponse` | Data from Sefaria Word API. If provided, renders lexicon entries. |
+| `fetchData` | `boolean` | If true, fetches data from the Sefaria API when `sefariaData` is not provided. |
+| `onEvent` | `EventHandler<DictionaryBlockEvent>` | Event handler for component events |
+| `className` | `string` | Additional CSS class name |
+| `style` | `CSSProperties` | Additional inline styles |
+
+#### Basic Usage
+
+```tsx
+import { DictionaryBlock } from 'sefaria-ui-components';
+
+// Loading state - fetchData is false and no data provided
+<DictionaryBlock word="תורה" />
+
+// Auto-fetch data
+<DictionaryBlock word="שלום" fetchData={true} />
+
+// With pre-fetched data
+<DictionaryBlock
+  word="תורה"
+  sefariaData={fetchedData}
+/>
+```
+
+#### Fetching Data from Sefaria API
+
+```tsx
+import { DictionaryBlock, type SefariaWordResponse } from 'sefaria-ui-components';
+import { useState, useEffect } from 'react';
+
+function SefariaWord({ word }: { word: string }) {
+  const [data, setData] = useState<SefariaWordResponse | null>(null);
+
+  useEffect(() => {
+    const encoded = encodeURIComponent(word);
+    fetch(`https://www.sefaria.org/api/words/${encoded}`)
+      .then(res => res.json())
+      .then(json => setData(json));
+  }, [word]);
+
+  return <DictionaryBlock word={word} sefariaData={data ?? undefined} />;
+}
+```
+
+#### Handling Events
+
+DictionaryBlock emits events for user interactions:
+
+```tsx
+import { DictionaryBlock, type DictionaryBlockEvent } from 'sefaria-ui-components';
+
+function App() {
+  const handleEvent = (event: DictionaryBlockEvent) => {
+    if (event.type === 'DictionaryBlock:click') {
+      console.log('Clicked word:', event.data.word);
+    }
+  };
+
+  return (
+    <DictionaryBlock
+      word="תורה"
+      sefariaData={data}
+      onEvent={handleEvent}
+    />
+  );
+}
+```
+
+#### Event Types
+
+| Event | Data | Description |
+|-------|------|-------------|
+| `DictionaryBlock:click` | `{ word: string }` | Fired when the dictionary block is clicked |
+
 ## Types
 
 ### SefariaTextResponse
+
+Response from the Sefaria Text API (`https://www.sefaria.org/api/v3/texts/{ref}`).
 
 ```typescript
 interface SefariaTextResponse {
@@ -171,6 +258,12 @@ interface SefariaTextResponse {
   heRef?: string;
   text?: unknown;
   he?: unknown;
+  versions?: Array<{
+    text?: unknown;
+    language?: string;
+    versionTitle?: string;
+    isPrimary?: boolean;
+  }>;
   sections?: unknown;
   toSections?: unknown;
   primary_category?: unknown;
@@ -194,6 +287,40 @@ type FollowupAction =
   | 'commentary_unusual'
   | 'connect_to_life'
   | 'trace_usage';
+```
+
+### SefariaWordResponse
+
+Response from the Sefaria Word API (`https://www.sefaria.org/api/words/{word}`).
+
+```typescript
+type SefariaWordResponse = LexiconEntry[];
+
+interface LexiconEntry {
+  headword?: string;
+  parent_lexicon?: string;
+  content?: LexiconContent;
+  rid?: string;
+  refs?: string[];
+  derivatives?: string;
+  notes?: string;
+  [key: string]: unknown;
+}
+
+interface LexiconContent {
+  morphology?: string;
+  senses?: LexiconSense[];
+  [key: string]: unknown;
+}
+
+interface LexiconSense {
+  definition?: string;
+  number?: string;
+  language_code?: string;
+  plural_form?: string;
+  senses?: LexiconSense[]; // Nested senses for hierarchical definitions
+  [key: string]: unknown;
+}
 ```
 
 ## Utilities

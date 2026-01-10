@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react';
+import React, { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { categoryColor } from '../../lib/palette';
 import type { ComponentEventOf, EventHandler } from '../../lib/events';
 import type { FollowupAction } from '../../lib/followup-prompts';
+import { ColorLineBlock } from '../ColorLineBlock';
 
 /**
  * Response type from the Sefaria Text API.
@@ -16,6 +17,7 @@ export interface SefariaTextResponse {
     language?: string;
     versionTitle?: string;
     isPrimary?: boolean;
+    [key: string]: unknown;
   }>;
   sections?: unknown;
   toSections?: unknown;
@@ -329,16 +331,6 @@ function getBorderColor(source: SefariaTextResponse | undefined, fallbackRef?: s
 }
 
 const styles: Record<string, CSSProperties> = {
-  container: {
-    position: 'relative',
-    borderWidth: '1px',
-    borderStyle: 'solid',
-    borderColor: '#e4e4e7',
-    borderLeftWidth: '5px',
-    backgroundColor: '#ffffff',
-    padding: '16px',
-    paddingBottom: '16px',
-  },
   title: {
     fontSize: '1.125rem',
     fontFamily: 'Georgia, "Times New Roman", serif',
@@ -672,15 +664,7 @@ function TextBlockInner({
   };
 
   return (
-    <div
-      className={className}
-      style={{
-        ...styles.container,
-        borderLeftColor: borderColor,
-        ...style,
-      }}
-      onClick={handleClick}
-    >
+    <ColorLineBlock className={className} style={style} borderColor={borderColor} onClick={handleClick}>
       <div style={styles.headerRow}>
         <a
           href={href}
@@ -842,7 +826,7 @@ function TextBlockInner({
           )}
         </div>
       )}
-    </div>
+    </ColorLineBlock>
   );
 }
 

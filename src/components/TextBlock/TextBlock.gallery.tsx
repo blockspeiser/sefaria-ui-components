@@ -3,9 +3,9 @@ import { TextBlock, type TextBlockProps } from './TextBlock';
 import { getData } from '../../../gallery/src/datastore';
 
 const sourceCode = `import type { CSSProperties } from 'react';
-import { categoryColor } from '../../lib/palette';
 import type { ComponentEventOf, EventHandler } from '../../lib/events';
 
+// Response from https://www.sefaria.org/api/v3/texts/{ref}
 export interface SefariaTextResponse {
   ref?: string;
   heRef?: string;
