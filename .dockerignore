@@ -1,0 +1,15 @@
+.git
+node_modules
+npm-debug.log
+.DS_Store
+
+# local build outputs (Cloud Build produces these during the Docker build)
+dist
+gallery/dist
+
+# editor / tooling
+.vscode
+.idea
+
+# misc
+*.tsbuildinfo
